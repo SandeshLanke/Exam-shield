@@ -42,3 +42,5 @@ yolov3.weights
 
 # Logs
 *.log
+*.csv
+todo.txt

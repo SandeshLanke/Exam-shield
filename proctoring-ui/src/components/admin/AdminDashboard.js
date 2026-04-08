@@ -1,146 +1,115 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import ResultScreen from '../exam/ResultScreen';
 
 const API_URL = 'http://localhost:8000';
 
-function AdminDashboard({ sessionId, userData, onLogout }) {
-  const [summary, setSummary] = useState(null);
+function AdminDashboard({ onLogout }) {
+  const [sessions, setSessions] = useState([]);
+  const [selectedSessionId, setSelectedSessionId] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    fetchExamSummary();
+    fetchSessions();
   }, []);
 
-  const fetchExamSummary = async () => {
+  const fetchSessions = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(
-        `${API_URL}/exam-summary/${sessionId}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      setSummary(response.data);
-    } catch (error) {
-      console.error('Error fetching summary:', error);
+      // Using a fallback for list-all-sessions if needed, otherwise just current logic
+      const response = await axios.get(`${API_URL}/all-sessions`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setSessions(response.data);
+    } catch (err) {
+      console.warn('Could not fetch sessions list:', err.message);
+      setError('You are viewing the results review pane. Click on a session to view details.');
     } finally {
       setLoading(false);
     }
   };
 
-  if (loading) {
-    return <div className="loading">Loading exam results...</div>;
+  if (selectedSessionId) {
+    return (
+      <div className="admin-review-mode">
+        <div style={{ background:'var(--bg-secondary)', padding:'10px 40px', borderBottom:'1px solid rgba(255,255,255,0.05)', display:'flex', alignItems:'center', gap:'20px' }}>
+          <button onClick={() => setSelectedSessionId(null)} className="btn-secondary" style={{ fontSize:'13px' }}>
+            ← Back to Session List
+          </button>
+          <span style={{ color:'var(--text-muted)', fontSize:'13px' }}>Reviewing Session #{selectedSessionId}</span>
+        </div>
+        <ResultScreen
+          sessionId={selectedSessionId}
+          userData={{ name: 'Admin' }}
+          onLogout={onLogout}
+        />
+      </div>
+    );
   }
-
-  if (!summary) {
-    return <div className="error">Failed to load exam summary</div>;
-  }
-
-  // Prepare data for chart
-  const chartData = Object.entries(summary.violation_counts || {}).map(([type, count]) => ({
-    name: type.replace(/_/g, ' '),
-    count: count
-  }));
-
-  const calculateDuration = () => {
-    if (!summary.session.start_time || !summary.session.end_time) return 'N/A';
-    const start = new Date(summary.session.start_time);
-    const end = new Date(summary.session.end_time);
-    const diff = Math.floor((end - start) / 1000 / 60);
-    return `${diff} minutes`;
-  };
 
   return (
-    <div className="admin-dashboard">
-      <div className="dashboard-header">
-        <h1>Exam Summary Report</h1>
+    <div className="admin-dashboard-container" style={{ padding:'40px', background:'var(--bg-primary)', minHeight:'100vh' }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'40px' }}>
+        <div>
+          <h1 style={{ background:'var(--accent-gradient)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', fontSize:'32px', margin:0 }}>
+            🛡️ Admin Control Panel
+          </h1>
+          <p style={{ color:'var(--text-muted)', marginTop:'8px' }}>Monitor exam integrity and review candidate assessments</p>
+        </div>
         <button onClick={onLogout} className="btn-secondary">Logout</button>
       </div>
 
-      <div className="summary-cards">
-        <div className="summary-card">
-          <div className="card-icon">👤</div>
-          <div className="card-content">
-            <h3>Student</h3>
-            <p>{summary.user.name}</p>
-            <small>{summary.user.email}</small>
-          </div>
-        </div>
-
-        <div className="summary-card">
-          <div className="card-icon">⏱️</div>
-          <div className="card-content">
-            <h3>Duration</h3>
-            <p>{calculateDuration()}</p>
-            <small>Total time taken</small>
-          </div>
-        </div>
-
-        <div className="summary-card">
-          <div className="card-icon">⚠️</div>
-          <div className="card-content">
-            <h3>Total Violations</h3>
-            <p className="violation-number">{summary.total_violations}</p>
-            <small>Suspicious activities detected</small>
-          </div>
-        </div>
-
-        <div className="summary-card">
-          <div className="card-icon">✅</div>
-          <div className="card-content">
-            <h3>Status</h3>
-            <p className="status-text">{summary.session.status}</p>
-            <small>Exam completed</small>
-          </div>
-        </div>
-      </div>
-
-      {chartData.length > 0 && (
-        <div className="chart-section">
-          <h2>Violation Breakdown</h2>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" angle={-45} textAnchor="end" height={100} />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Bar dataKey="count" fill="#e74c3c" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-
-      <div className="violations-timeline">
-        <h2>Violation Timeline</h2>
-        {summary.violations.length === 0 ? (
-          <div className="no-violations">
-            <p>✅ No violations detected during the exam</p>
-          </div>
-        ) : (
-          <div className="timeline">
-            {summary.violations.map((violation, index) => (
-              <div key={index} className="timeline-item">
-                <div className="timeline-marker"></div>
-                <div className="timeline-content">
-                  <div className="timeline-time">
-                    {new Date(violation.timestamp).toLocaleTimeString()}
-                  </div>
-                  <div className="timeline-violation">
-                    <strong>{violation.violation_type.replace(/_/g, ' ')}</strong>
-                    <span className="confidence">
-                      Confidence: {(violation.confidence * 100).toFixed(0)}%
+      <div style={{ background:'var(--bg-glass)', borderRadius:'20px', border:'1px solid rgba(255,255,255,0.05)', overflow:'hidden' }}>
+        <table style={{ width:'100%', borderCollapse:'collapse', textAlign:'left' }}>
+          <thead style={{ background:'rgba(255,255,255,0.02)', borderBottom:'1px solid rgba(255,255,255,0.05)' }}>
+            <tr>
+              <th style={{ padding:'20px', color:'var(--text-muted)', fontSize:'13px', fontWeight:600 }}>STUDENT</th>
+              <th style={{ padding:'20px', color:'var(--text-muted)', fontSize:'13px', fontWeight:600 }}>STATUS</th>
+              <th style={{ padding:'20px', color:'var(--text-muted)', fontSize:'13px', fontWeight:600 }}>START TIME</th>
+              <th style={{ padding:'20px', color:'var(--text-muted)', fontSize:'13px', fontWeight:600 }}>ACTIONS</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sessions.length === 0 ? (
+              <tr>
+                <td colSpan="4" style={{ padding:'60px', textAlign:'center', color:'var(--text-muted)' }}>
+                  {loading ? 'Fetching records...' : 'No exam records found.'}
+                </td>
+              </tr>
+            ) : (
+              sessions.map(s => (
+                <tr key={s.id} style={{ borderBottom:'1px solid rgba(255,255,255,0.05)', transition:'var(--transition)' }}>
+                  <td style={{ padding:'20px' }}>
+                    <div style={{ fontWeight:600, color:'white' }}>{s.user_name || 'Test Student'}</div>
+                    <div style={{ fontSize:'12px', color:'var(--text-muted)' }}>{s.user_email || 'student@test.com'}</div>
+                  </td>
+                  <td style={{ padding:'20px' }}>
+                    <span style={{
+                      padding:'4px 12px', borderRadius:'99px', fontSize:'12px', fontWeight:600,
+                      background: s.status === 'completed' ? 'rgba(16,185,129,0.15)' : 'rgba(99,102,241,0.15)',
+                      color: s.status === 'completed' ? 'var(--success)' : 'var(--accent-primary)'
+                    }}>
+                      {s.status.toUpperCase()}
                     </span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="action-buttons">
-        <button className="btn-primary">Download Report (PDF)</button>
-        <button className="btn-secondary">Export Data (CSV)</button>
+                  </td>
+                  <td style={{ padding:'20px', fontSize:'14px', color:'var(--text-secondary)' }}>
+                    {new Date(s.start_time).toLocaleString()}
+                  </td>
+                  <td style={{ padding:'20px' }}>
+                    <button
+                      onClick={() => setSelectedSessionId(s.id)}
+                      className="btn-primary"
+                      style={{ padding:'8px 16px', fontSize:'13px' }}
+                    >
+                      View Full Report
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );
