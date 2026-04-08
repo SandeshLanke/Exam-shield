@@ -1,0 +1,11 @@
+{
+  "name": "ai-proctoring",
+  "version": "1.0.0",
+  "description": "To run the project \r step 1:- run backend\r   1) venv\\scripts\\activate\r   2) make sure you have downloaded the YOLO configuration, weights and class\r      files (e.g. ``yolov3.cfg``, ``yolov3.weights`` and ``coco.names``) and\r      place them in the project root or update the paths in ``main.py``.\r   3) python main.py",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC"
+}
